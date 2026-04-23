@@ -6,15 +6,17 @@ Tema visual: ICU Dark — fondo negro, waveform cyan, alertas rojo.
 Layout    : Header | Grafico ECG (70%) + Sidebar (30%) | Status Bar
 
 Paneles del sidebar (scrollable):
-  1. VITAL SIGNS     - BPM grande, clasificacion ritmo, QRS count, calidad señal
-  2. LEAD SELECTION  - 6 botones de derivada + AUTO SCAN
-  3. PACEMAKER       - Trigger manual, amplitud, frecuencia, preview bifasico, auto-pacing
-  4. SIGNAL SETTINGS - Umbrales, ganancia, ventana, Y max, refresh
-  5. CONNECTION      - Puerto, baud rate, conectar/desconectar, badge de modo
-  6. SIMULATION      - Frec. cardiaca, amplitud, ruido, arritmia, tipo de forma
+  1. SIGNOS VITALES        - BPM grande, clasificación de ritmo, QRS detectados, calidad de señal
+  2. SELECCIÓN DERIVACIÓN  - 6 botones de derivación + escaneo automático
+  3. MARCAPASOS            - Disparo manual, amplitud, frecuencia, vista previa bifásica, auto-estimulación
+  4. AJUSTES DE SEÑAL      - Umbrales, ganancia, ventana, Y máx, refresco
+  5. CONEXIÓN              - Puerto, baud rate, conectar/desconectar, estado
+  6. SIMULACIÓN            - Frec. cardiaca, amplitud, ruido, arritmia, tipo de forma
 """
 
 import tkinter as tk
+import threading
+import queue
 import matplotlib
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
@@ -101,6 +103,10 @@ class ECGApp(tk.Tk):
 
         # ── Estado compartido y lector serial ─────────────────────
         self.app_state     = AppState(master=self)
+
+        # Iniciar siempre en simulación al abrir la app.
+        # La conexión al hardware se hace únicamente al presionar “Conectar”.
+        config.SERIAL_PORT = "NONE_SIM"
         self.serial_reader = SerialReader(self.app_state)
 
         # ── Estado del control de derivadas ───────────────────────
@@ -174,6 +180,20 @@ class ECGApp(tk.Tk):
         # Evitar crashes silenciosos del loop de GUI (Tkinter puede quedar “no responde” si se corta el after)
         self.report_callback_exception = self._on_tk_exception
 
+        # ── Hilo de análisis (picos R / QRS / BPM) para que la GUI no se bloquee ──
+        self._analysis_in_q = queue.Queue(maxsize=1)
+        self._analysis_out_q = queue.Queue(maxsize=1)
+        self._analysis_running = True
+        self._analysis_thread = threading.Thread(
+            target=self._analysis_loop, name="ECGAnalysisWorker", daemon=True
+        )
+        self._analysis_thread.start()
+
+        self._analysis_peaks = []
+        self._analysis_qrs = []
+        self._analysis_bpm = 0.0
+        self._analysis_rhythm = "---"
+
     def _on_tk_exception(self, exc, val, tb):
         """Evita que una excepción rompa el loop `after` y congele la GUI."""
         try:
@@ -186,6 +206,39 @@ class ECGApp(tk.Tk):
                 self.after(120, self.update_gui)
         except Exception:
             pass
+
+    def _analysis_loop(self):
+        """Hilo de análisis para evitar bloqueos del hilo de GUI."""
+        while self._analysis_running:
+            job = None
+            try:
+                job = self._analysis_in_q.get(timeout=0.3)
+            except Exception:
+                continue
+            if not job:
+                continue
+
+            try:
+                y_centered, sample_rate, r_thr, r_dist = job
+                peaks = detect_r_peaks(y_centered, r_thr, r_dist)
+                bpm = calculate_bpm(peaks, sample_rate)
+                rhythm = classify_rhythm(bpm)
+                qrs = detect_qrs_complex(y_centered, peaks, sample_rate)
+                result = (peaks, qrs, bpm, rhythm)
+
+                # Dejar solo el resultado más reciente
+                try:
+                    while True:
+                        self._analysis_out_q.get_nowait()
+                except Exception:
+                    pass
+                try:
+                    self._analysis_out_q.put_nowait(result)
+                except Exception:
+                    pass
+            except Exception:
+                # No matar el hilo por errores puntuales
+                continue
 
     # ==============================================================
     # ── HELPERS SEGUROS ───────────────────────────────────────────
@@ -288,7 +341,7 @@ class ECGApp(tk.Tk):
         right = tk.Frame(hdr, bg=self.T["panel"])
         right.pack(side=tk.RIGHT, padx=18, pady=14)
 
-        # Badge de modo (SIMULATION / HARDWARE)
+        # Badge de modo (SIMULACIÓN / HARDWARE)
         self.mode_badge_hdr = tk.Label(
             right, text="SIMULACIÓN",
             font=("Segoe UI", 9, "bold"), padx=10, pady=5, bd=0,
@@ -600,7 +653,7 @@ class ECGApp(tk.Tk):
         return badge
 
     # ==============================================================
-    # ── PANEL 1: VITAL SIGNS ──────────────────────────────────────
+    # ── PANEL 1: SIGNOS VITALES ───────────────────────────────────
     # ==============================================================
 
     def _create_vital_signs_panel(self, parent):
@@ -634,7 +687,7 @@ class ECGApp(tk.Tk):
         self.sig_quality_badge = self._metric_row(c, "Calidad de señal")
 
     # ==============================================================
-    # ── PANEL 2: LEAD SELECTION ───────────────────────────────────
+    # ── PANEL 2: SELECCIÓN DE DERIVACIÓN ──────────────────────────
     # ==============================================================
 
     def _create_lead_selection_panel(self, parent):
@@ -798,7 +851,7 @@ class ECGApp(tk.Tk):
         canvas.create_text(x4, H - 4, text="T", fill=self.T["muted"], font=("Segoe UI", 7))
 
     # ==============================================================
-    # ── PANEL 4: SIGNAL SETTINGS ─────────────────────────────────
+    # ── PANEL 4: AJUSTES DE SEÑAL ─────────────────────────────────
     # ==============================================================
 
     def _create_signal_settings_panel(self, parent):
@@ -829,7 +882,7 @@ class ECGApp(tk.Tk):
             self._spinbox(r, var, fr, to, inc, 9).pack()
 
     # ==============================================================
-    # ── PANEL 5: CONNECTION ───────────────────────────────────────
+    # ── PANEL 5: CONEXIÓN ─────────────────────────────────────────
     # ==============================================================
 
     def _create_connection_panel(self, parent):
@@ -895,7 +948,7 @@ class ECGApp(tk.Tk):
         self.conn_samples_badge = self._metric_row(c, "Muestras totales")
 
     # ==============================================================
-    # ── PANEL 6: SIMULATION CONTROL ──────────────────────────────
+    # ── PANEL 6: CONTROL DE SIMULACIÓN ────────────────────────────
     # ==============================================================
 
     def _create_simulation_panel(self, parent):
@@ -1020,7 +1073,7 @@ class ECGApp(tk.Tk):
     # ==============================================================
 
     def _update_vital_signs(self, bpm: float, rhythm: str, qrs_count: int, sig_ok: bool):
-        """Actualiza el panel VITAL SIGNS con los valores del frame actual."""
+        """Actualiza el panel SIGNOS VITALES con los valores del frame actual."""
         # Color del BPM segun el ritmo
         if bpm <= 0:
             bpm_text  = "---"
@@ -1385,6 +1438,17 @@ class ECGApp(tk.Tk):
         dc_offset  = float(np.median(yw[-n_dc:]))
         y_centered = (yw - dc_offset) * gain
 
+        # ── Recibir último resultado del hilo de análisis ─────────
+        try:
+            while True:
+                peaks, qrs, bpm, rhythm = self._analysis_out_q.get_nowait()
+                self._analysis_peaks = peaks or []
+                self._analysis_qrs = qrs or []
+                self._analysis_bpm = float(bpm or 0.0)
+                self._analysis_rhythm = rhythm or "---"
+        except Exception:
+            pass
+
         # ── Spike manual de marcapasos ────────────────────────────
         spike_visible = now < getattr(self.app_state, "pace_alert_until", 0.0)
 
@@ -1416,13 +1480,19 @@ class ECGApp(tk.Tk):
                         half_i = min(si + max(1, len(xw_sec) // 60), len(xw_sec) - 1)
                         self._spike_x2_sec = float(xw_sec[half_i])
 
-        # ── Deteccion de picos R ──────────────────────────────────
+        # ── Enviar trabajo al hilo de análisis (no bloqueante) ─────
         r_thr  = max(0.01, self._safe_float(self.app_state.r_threshold, 0.3))
         r_dist = max(10,   self._safe_int(self.app_state.r_distance, 200))
-        peaks  = detect_r_peaks(y_centered, r_thr, r_dist)
+        if self._analysis_running and self._analysis_in_q.empty():
+            try:
+                self._analysis_in_q.put_nowait((y_centered.copy(), sample_rate, r_thr, r_dist))
+            except Exception:
+                pass
 
-        bpm    = calculate_bpm(peaks, sample_rate)
-        rhythm = classify_rhythm(bpm)
+        peaks  = list(self._analysis_peaks or [])
+        bpm    = float(self._analysis_bpm or 0.0)
+        rhythm = str(self._analysis_rhythm or "---")
+
         if bpm > 0:
             self.app_state.last_bpm = bpm
 
@@ -1433,10 +1503,7 @@ class ECGApp(tk.Tk):
                 if abs_idx > self._last_qrs_abs_idx:
                     self.app_state.qrs_detected_count += 1
                     self._last_qrs_abs_idx = abs_idx
-
-        # Deteccion de complejos QRS: solo cada 3 frames para ahorrar CPU
-        if self._frame_count % 3 == 0:
-            self._last_qrs_complexes = detect_qrs_complex(y_centered, peaks, sample_rate)
+        self._last_qrs_complexes = list(self._analysis_qrs or [])
 
         # ── Actualizar artistas matplotlib ────────────────────────
         self.ecg_line.set_data(xw_sec, y_centered)
@@ -1480,6 +1547,7 @@ class ECGApp(tk.Tk):
                                      self.app_state.qrs_detected_count, signal_ok)
             self._update_pacemaker_panel()
             self._update_connection_panel()
+            self._update_simulation_panel()
             self.sb_samples_lbl.config(text=f"{sc:,}")
             bpm_color = (self.T["success"] if 60 <= bpm <= 100
                          else self.T["warning"] if bpm > 0 else self.T["muted"])
@@ -1547,6 +1615,7 @@ class ECGApp(tk.Tk):
     def on_closing(self):
         """Cierra la aplicacion de forma limpia."""
         self.is_running = False
+        self._analysis_running = False
 
         try:
             self.serial_reader.stop()

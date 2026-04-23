@@ -104,6 +104,13 @@ class SerialReader(threading.Thread):
 
     def _open_port(self):
         """Intenta abrir el puerto serial configurado en config.SERIAL_PORT."""
+        port = str(getattr(config, "SERIAL_PORT", "") or "").strip()
+        # Permite iniciar siempre en simulación y conectar solo cuando el usuario lo pida desde la UI
+        if (not port) or port.upper().startswith(("NONE", "SIM", "AUTO")):
+            self.serial_port = None
+            self._set_connected(False, simulation=True)
+            return
+
         if not SERIAL_AVAILABLE:
             print("[Serial] pyserial no disponible. Iniciando simulacion.")
             self._set_connected(False, simulation=True)
@@ -111,7 +118,7 @@ class SerialReader(threading.Thread):
 
         try:
             self.serial_port = serial.Serial(
-                port     = config.SERIAL_PORT,
+                port     = port,
                 baudrate = config.BAUDRATE,
                 timeout  = getattr(config, "SERIAL_TIMEOUT", 1),
             )
@@ -125,10 +132,10 @@ class SerialReader(threading.Thread):
                 pass
 
             self._set_connected(True, simulation=False)
-            print(f"[Serial] Conectado a {config.SERIAL_PORT} a {config.BAUDRATE} baud.")
+            print(f"[Serial] Conectado a {port} a {config.BAUDRATE} baud.")
 
         except Exception as e:
-            print(f"[Serial] No se pudo abrir {config.SERIAL_PORT}: {e}")
+            print(f"[Serial] No se pudo abrir {port}: {e}")
             print("[Serial] Iniciando MODO SIMULACION automaticamente.")
             self.serial_port = None
             self._set_connected(False, simulation=True)
@@ -206,20 +213,22 @@ class SerialReader(threading.Thread):
         """Retorna el BPM efectivo segun el tipo de forma de onda configurado."""
         wt = getattr(self, "sim_waveform_type", "NORMAL")
 
+        # 1) BPM base según el preset seleccionado (o el valor configurable)
         if wt == "BRADYCARDIA":
-            return 42.0
+            base = 42.0
         elif wt == "TACHYCARDIA":
-            return 132.0
-
-        # Arritmia temporal: variacion aleatoria del BPM
-        if self.sim_arrhythmia and time.time() < self.sim_arrhythmia_until:
-            base = float(self.sim_heart_rate)
-            noise = np.random.uniform(-20, 20)
-            return max(30.0, min(200.0, base + noise))
+            base = 132.0
         else:
-            self.sim_arrhythmia = False
+            base = float(self.sim_heart_rate)
 
-        return float(self.sim_heart_rate)
+        # 2) Arritmia temporal: variación aleatoria sobre el BPM base
+        if self.sim_arrhythmia and time.time() < self.sim_arrhythmia_until:
+            noise = float(np.random.uniform(-20, 20))
+            return max(30.0, min(200.0, base + noise))
+
+        # Expiró la arritmia: limpiar flag para que la UI quede consistente
+        self.sim_arrhythmia = False
+        return max(30.0, min(200.0, base))
 
     def _simulate_loop(self):
         """
