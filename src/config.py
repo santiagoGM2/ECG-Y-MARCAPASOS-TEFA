@@ -1,87 +1,86 @@
 """
-Global configuration file
-ECG Monitor - ESP32 + CD4051 MUX
-
+config.py
+Configuracion global del sistema ECG + Marcapasos.
+Hardware: ESP32 + CD4051 MUX. Interfaz Python/tkinter.
 """
 
 # =========================================================
 # ---------------- SERIAL CONFIGURATION -------------------
 # =========================================================
 
-# Puerto del ESP32 (CAMBIAR según tu PC)
+# Puerto del ESP32 (cambiar segun el sistema)
 SERIAL_PORT = "COM6"
-#uv run python -c "import serial.tools.list_ports; [print(p) for p in serial.tools.list_ports.comports()]"
 
-# Baudrate (Debe coincidir con el ESP32)
+# Baudrate (debe coincidir con el firmware del ESP32)
 BAUDRATE = 115200
 
 # Timeout de lectura serial (segundos)
 SERIAL_TIMEOUT = 1
 
-
 # =========================================================
 # ---------------- SAMPLING CONFIG ------------------------
 # =========================================================
 
-# Frecuencia de muestreo del ECG (Hz)
-# Debe coincidir con la frecuencia real del ADC del ESP32
-SAMPLE_RATE = 1000  
+# Frecuencia de muestreo del ECG (Hz) — debe coincidir con el ADC del ESP32
+SAMPLE_RATE = 1000
 
-ENABLE_FILTERS = False  # Enable/disable filters
+# Habilitar/deshabilitar filtros de señal
+ENABLE_FILTERS = False
 
-# Intervalo de actualización de la GUI (ms)
+# Intervalo de actualizacion de la GUI (ms)
 REFRESH_INTERVAL = 80
 
-# Tamaño máximo del buffer circular
+# Tamaño maximo del buffer circular
 MAX_BUFFER_SIZE = 5000
-
 
 # =========================================================
 # ---------------- MUX CONFIGURATION ----------------------
 # =========================================================
 
 # Prefijo del comando enviado al ESP32
-# Ejemplo enviado: "MUX:0"
 MUX_COMMAND_PREFIX = "MUX:"
 
-# Número total de derivaciones
+# Numero total de derivadas del ECG
 TOTAL_DERIVATIONS = 6
 
+# Formato del comando MUX enviado al firmware
+MUX_COMMAND_FORMAT = "STATE_{state}\n"
 
 # =========================================================
 # ---------------- SIGNAL DISPLAY CONFIG ------------------
 # =========================================================
 
-# Valor máximo inicial del eje Y (Voltios)
+# Valor maximo inicial del eje Y (Voltios)
 DEFAULT_Y_MAX = 2.0
 
-# Tamaño inicial de ventana de visualización (samples)
+# Tamaño inicial de la ventana de visualizacion (samples)
 DEFAULT_WINDOW_SIZE = 2000
 
-# Ganancia inicial de visualización
+# Ganancia inicial de visualizacion
 DEFAULT_GAIN = 1.0
-
 
 # =========================================================
 # ---------------- PEAK DETECTION CONFIG ------------------
 # =========================================================
 
-# Umbral inicial para detección R
-DEFAULT_R_THRESHOLD = 0.8
+# Umbral inicial para deteccion de pico R (Voltios)
+DEFAULT_R_THRESHOLD = 0.3
 
-# Distancia mínima entre picos R (samples)
+# Distancia minima entre picos R consecutivos (samples)
 DEFAULT_R_DISTANCE = 200
-
 
 # =========================================================
 # ---------------- SYSTEM MODES ---------------------------
 # =========================================================
 
 MODE_MANUAL = "MANUAL"
-MODE_AUTO = "AUTO"
+MODE_AUTO   = "AUTO"
 
-AUTO_TIMEOUT = 10          # segundos sin tocar nada → pasa a AUTO
-AUTO_SWITCH_INTERVAL = 8   # cada cuántos segundos cambia derivada en AUTO
+# Segundos sin interaccion antes de pasar a modo AUTO
+AUTO_TIMEOUT = 10
+
+# Segundos entre cambios de derivada en modo AUTO
+AUTO_SWITCH_INTERVAL = 8
 
 # =========================================================
 # ---------------- DEBUG ----------------------------------
@@ -89,50 +88,89 @@ AUTO_SWITCH_INTERVAL = 8   # cada cuántos segundos cambia derivada en AUTO
 
 ENABLE_DEBUG_PRINTS = False
 
+# =========================================================
+# ---------------- PACEMAKER CONFIG -----------------------
+# =========================================================
 
-PACE_TIMEOUT_SEC = 1.5
+# Tiempo de alerta visual del marcapasos (segundos)
+PACE_UI_ALERT_SEC    = 1.5
+PACE_ALERT_HOLD_SEC  = PACE_UI_ALERT_SEC
+PACE_TIMEOUT_SEC     = 1.5
 PACE_MIN_INTERVAL_SEC = 0.8
+
+# Amplitud del spike de marcapasos (Voltios)
+PACE_SPIKE_AMPLITUDE = 1.0
+
+# Ancho del spike en samples (~4 ms a 1kHz)
+PACE_SPIKE_WIDTH_SAMPLES = 4
+
+# Duracion del pulso bifasico (ms)
+PACE_SPIKE_DURATION_MS = 4
+
+# Umbral de derivada para detectar spike automaticamente
+PACE_DERIV_THRESHOLD = 0.6
 
 # =========================================================
 # ---------------- DISPLAY / UX ---------------------------
 # =========================================================
 
-# ====== UI / DERIVATION SWITCH (blanking) ======
+# Blanking despues de cambiar derivada (segundos)
 DERIVATION_SWITCH_BLANK_SEC = 2.5
-BLANK_AFTER_SWITCH_SEC = DERIVATION_SWITCH_BLANK_SEC  # alias para el app.py
+BLANK_AFTER_SWITCH_SEC      = DERIVATION_SWITCH_BLANK_SEC
 
-# ====== NO SIGNAL DETECTION (en VOLTIOS) ======
-# ventana sobre la que se calcula P2P para decidir si “hay señal”
-NO_SIGNAL_WINDOW_SAMPLES = int(SAMPLE_RATE * 0.30)  # ~300 ms
+# =========================================================
+# ---------------- NO SIGNAL DETECTION --------------------
+# =========================================================
 
-# umbral pico a pico mínimo para considerar que sí hay señal
-NO_SIGNAL_P2P_V = 0.020
-NO_SIGNAL_P2P_THRESHOLD = NO_SIGNAL_P2P_V  # alias para el app.py
+# Ventana de muestras para calcular P2P y decidir si hay señal
+NO_SIGNAL_WINDOW_SAMPLES = 500
 
-# cuánto tiempo sin señal para ya mostrar baseline “muerta”
-NO_SIGNAL_TIMEOUT_SEC = 1.0
-NO_SIGNAL_MIN_SECONDS = NO_SIGNAL_TIMEOUT_SEC  # alias para el app.py
+# Umbral pico a pico minimo para considerar que hay señal (Voltios)
+NO_SIGNAL_P2P_V         = 0.02
+NO_SIGNAL_P2P_THRESHOLD = NO_SIGNAL_P2P_V
 
-# ====== PACEMAKER UI / DETECTION ======
-PACE_UI_ALERT_SEC = 1.0
-PACE_ALERT_HOLD_SEC = PACE_UI_ALERT_SEC  # alias para el app.py
+# Umbral de desviacion estandar para detectar señal
+NO_SIGNAL_STD_V = 0.005
 
-# Spike simulado cuando presionas el botón (en VOLTIOS)
-# (ajusta si tu señal está muy pequeña o muy grande)
-PACE_SPIKE_WIDTH_SAMPLES = max(3, int(SAMPLE_RATE * 0.010))  # ~10 ms
-PACE_SPIKE_AMPLITUDE = 0.7
+# Tiempo sin señal para mostrar baseline muerta (segundos)
+NO_SIGNAL_TIMEOUT_SEC  = 1.0
+NO_SIGNAL_MIN_SECONDS  = NO_SIGNAL_TIMEOUT_SEC
 
-# Detección tipo “pacer”: si el salto entre muestras es muy brusco
-PACE_DERIV_THRESHOLD = 0.35
+# =========================================================
+# ---------------- SERIAL ROBUSTNESS ----------------------
+# =========================================================
 
-# ====== Serial robustness ======
-SERIAL_RECONNECT_SEC = 1.5     # cada cuánto reintenta abrir COM si se cae
-SERIAL_STALE_SEC = 2.0         # si no llegan bytes en este tiempo => desconectado visualmente
+# Intervalo de reconexion serial (segundos)
+SERIAL_RECONNECT_SEC = 3.0
 
-# ====== ADC conversion ======
+# Tiempo maximo sin datos antes de considerar desconexion
+SERIAL_STALE_SEC = 2.0
+
+# =========================================================
+# ---------------- ADC CONVERSION -------------------------
+# =========================================================
+
+# Voltaje de referencia del ADC del ESP32
 ADC_VREF = 3.3
+
+# Valor maximo del ADC de 12 bits
 ADC_MAX = 4095
 
-# ====== MUX command format ======
-# Tu firmware Arduino acepta: "STATE_3", "STATE3", "MUX:3", o solo "3"
-MUX_COMMAND_FORMAT = "STATE_{state}\n"
+# =========================================================
+# ---------------- SIMULATION MODE ------------------------
+# =========================================================
+
+# Habilitar modo simulacion (se sobreescribe en runtime segun hardware)
+SIMULATION_MODE = True
+
+# Frecuencia cardiaca de la simulacion (BPM)
+SIMULATION_HEART_RATE = 72
+
+# Desviacion estandar del ruido gaussiano en simulacion (mV)
+SIMULATION_NOISE = 0.02
+
+# =========================================================
+# ---------------- SESSION INFO ---------------------------
+# =========================================================
+
+SESSION_LABEL = "BIOMEDICAL DEMO"
