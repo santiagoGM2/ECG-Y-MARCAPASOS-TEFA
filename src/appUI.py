@@ -2,16 +2,16 @@
 appUI.py
 Interfaz grafica principal del Monitor ECG + Marcapasos.
 
-Tema visual: ICU Dark — fondo negro, waveform cyan, alertas rojo.
-Layout    : Header | Grafico ECG (70%) + Sidebar (30%) | Status Bar
+Tema visual: Plasma Core — fondo purpura oscuro, waveform lima electrico, magenta neon.
+Layout    : Header | Sidebar (30%) izquierda + Grafico ECG (70%) derecha | Status Bar
 
 Paneles del sidebar (scrollable):
-  1. SIGNOS VITALES        - BPM grande, clasificación de ritmo, QRS detectados, calidad de señal
-  2. SELECCIÓN DERIVACIÓN  - 6 botones de derivación + escaneo automático
+  1. CONEXIÓN              - Puerto, baud rate, conectar/desconectar, estado
+  2. SIGNOS VITALES        - BPM grande, clasificación de ritmo, QRS detectados, calidad de señal
   3. MARCAPASOS            - Disparo manual, amplitud, frecuencia, vista previa bifásica, auto-estimulación
-  4. AJUSTES DE SEÑAL      - Umbrales, ganancia, ventana, Y máx, refresco
-  5. CONEXIÓN              - Puerto, baud rate, conectar/desconectar, estado
-  6. SIMULACIÓN            - Frec. cardiaca, amplitud, ruido, arritmia, tipo de forma
+  4. SELECCIÓN DERIVACIÓN  - 6 botones de derivación + escaneo automático
+  5. SIMULACIÓN            - Frec. cardiaca, amplitud, ruido, arritmia, tipo de forma
+  6. AJUSTES DE SEÑAL      - Umbrales, ganancia, ventana, Y máx, refresco
 """
 
 import tkinter as tk
@@ -35,47 +35,47 @@ from .peak_detection import (
 )
 
 # =========================================================
-# -------------------- TEMA ICU DARK ----------------------
+# ------------------ TEMA PLASMA CORE ---------------------
 # =========================================================
 
 DARK_ICU_THEME = {
-    "name":          "ICU Dark",
-    "bg":            "#0B1220",
-    "panel":         "#111827",
-    "border":        "#1F2937",
-    "text":          "#E5E7EB",
-    "muted":         "#94A3B8",
-    "title":         "#F8FAFC",
-    "primary":       "#3B82F6",
-    "primary_active":"#2563EB",
-    "accent":        "#22D3EE",
-    "accent_active": "#06B6D4",
-    "success":       "#10B981",
-    "warning":       "#FBBF24",
-    "danger":        "#EF4444",
-    "danger_active": "#DC2626",
-    "neutral_bg":    "#1B2636",
-    "neutral_fg":    "#CBD5E1",
-    "info_bg":       "#13233B",
-    "info_fg":       "#60A5FA",
-    "accent_bg":     "#0F2E2B",
-    "accent_fg":     "#2DD4BF",
-    "success_bg":    "#0F2A23",
-    "success_fg":    "#34D399",
-    "warning_bg":    "#3A2A0D",
-    "warning_fg":    "#FBBF24",
-    "danger_bg":     "#3A1418",
-    "danger_fg":     "#F87171",
+    "name":          "Plasma Core",
+    "bg":            "#080514",
+    "panel":         "#0F0A24",
+    "border":        "#2B1057",
+    "text":          "#F0E6FF",
+    "muted":         "#9D88CC",
+    "title":         "#FFFFFF",
+    "primary":       "#D946EF",
+    "primary_active":"#A21CAF",
+    "accent":        "#A3E635",
+    "accent_active": "#65A30D",
+    "success":       "#4ADE80",
+    "warning":       "#FB923C",
+    "danger":        "#F43F5E",
+    "danger_active": "#E11D48",
+    "neutral_bg":    "#1A0A38",
+    "neutral_fg":    "#C4B5FD",
+    "info_bg":       "#120833",
+    "info_fg":       "#818CF8",
+    "accent_bg":     "#1A2200",
+    "accent_fg":     "#BEF264",
+    "success_bg":    "#052E16",
+    "success_fg":    "#86EFAC",
+    "warning_bg":    "#431407",
+    "warning_fg":    "#FED7AA",
+    "danger_bg":     "#4C0519",
+    "danger_fg":     "#FDA4AF",
     "button_text":   "#FFFFFF",
-    "plot_bg":       "#0F172A",
-    "plot_border":   "#243244",
-    "plot_text":     "#E5E7EB",
-    "grid":          "#1E2D42",
-    "ecg_line":      "#22D3EE",
-    "qrs_highlight": "#22D3EE",
-    "pace_spike":    "#F59E0B",
-    "peak":          "#F87171",
-    "baseline":      "#334155",
+    "plot_bg":       "#060214",
+    "plot_border":   "#1E0840",
+    "plot_text":     "#E2D9F3",
+    "grid":          "#180A3A",
+    "ecg_line":      "#A3E635",
+    "qrs_highlight": "#D946EF",
+    "pace_spike":    "#D946EF",
+    "peak":          "#F43F5E",
+    "baseline":      "#2B1057",
 }
 
 # Derivadas estilo ICU: resaltado activo
@@ -289,81 +289,83 @@ class ECGApp(tk.Tk):
         body = tk.Frame(root, bg=self.T["bg"])
         body.pack(fill=tk.BOTH, expand=True, pady=(10, 0))
 
-        # Columna izquierda: panel del grafico (70%)
-        ecg_outer = tk.Frame(
-            body, bg=self.T["panel"],
-            highlightthickness=1, highlightbackground=self.T["border"], bd=0
-        )
-        ecg_outer.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
-        self._create_ecg_plot(ecg_outer)
-
-        # Columna derecha: sidebar con paneles (30%)
-        sidebar_container = tk.Frame(body, bg=self.T["bg"], width=400)
-        sidebar_container.pack(side=tk.RIGHT, fill=tk.Y)
+        # Columna izquierda: sidebar con paneles (30%)
+        sidebar_container = tk.Frame(body, bg=self.T["bg"], width=420)
+        sidebar_container.pack(side=tk.LEFT, fill=tk.Y)
         sidebar_container.pack_propagate(False)
 
         sidebar = self._create_scrollable_sidebar(sidebar_container)
 
-        self._create_vital_signs_panel(sidebar)
-        self._create_lead_selection_panel(sidebar)
-        self._create_pacemaker_panel(sidebar)
-        self._create_signal_settings_panel(sidebar)
         self._create_connection_panel(sidebar)
+        self._create_vital_signs_panel(sidebar)
+        self._create_pacemaker_panel(sidebar)
+        self._create_lead_selection_panel(sidebar)
         self._create_simulation_panel(sidebar)
+        self._create_signal_settings_panel(sidebar)
+
+        # Columna derecha: panel del grafico (70%)
+        ecg_outer = tk.Frame(
+            body, bg=self.T["panel"],
+            highlightthickness=1, highlightbackground=self.T["border"], bd=0
+        )
+        ecg_outer.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(10, 0))
+        self._create_ecg_plot(ecg_outer)
 
         # Barra de estado inferior
         self._create_status_bar(root)
 
     # ----------------------------------------------------------
     def _create_header(self, parent):
-        """Barra de cabecera: titulo, badge de conexion, reloj, badge de tema."""
+        """Barra de cabecera: badges de estado izquierda, titulo y reloj derecha."""
         hdr = tk.Frame(
             parent, bg=self.T["panel"],
             highlightthickness=1, highlightbackground=self.T["border"], bd=0
         )
         hdr.pack(fill=tk.X)
 
+        # Seccion izquierda: badges de estado y modo
         left = tk.Frame(hdr, bg=self.T["panel"])
-        left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=18, pady=14)
-
-        tk.Label(
-            left, text="Monitor ECG de Signos Vitales",
-            bg=self.T["panel"], fg=self.T["title"],
-            font=("Segoe UI", 19, "bold"),
-        ).pack(anchor="w")
-
-        tk.Label(
-            left, text="Adquisición de 6 derivaciones   |   Análisis ECG en tiempo real   |   Marcapasos bifásico",
-            bg=self.T["panel"], fg=self.T["muted"],
-            font=("Segoe UI", 9),
-        ).pack(anchor="w", pady=(3, 0))
-
-        right = tk.Frame(hdr, bg=self.T["panel"])
-        right.pack(side=tk.RIGHT, padx=18, pady=14)
-
-        # Badge de modo (SIMULACIÓN / HARDWARE)
-        self.mode_badge_hdr = tk.Label(
-            right, text="SIMULACIÓN",
-            font=("Segoe UI", 9, "bold"), padx=10, pady=5, bd=0,
-        )
-        self.mode_badge_hdr.pack(anchor="e", pady=(0, 6))
-        self._set_badge(self.mode_badge_hdr, "SIMULACIÓN", "warning")
+        left.pack(side=tk.LEFT, padx=18, pady=14)
 
         # Badge de conexion ESP32
         self.conn_badge_hdr = tk.Label(
-            right, text="DESCONECTADO",
+            left, text="DESCONECTADO",
             font=("Segoe UI", 9, "bold"), padx=10, pady=5, bd=0,
         )
-        self.conn_badge_hdr.pack(anchor="e", pady=(0, 6))
+        self.conn_badge_hdr.pack(anchor="w", pady=(0, 6))
         self._set_badge(self.conn_badge_hdr, "DESCONECTADO", "danger")
+
+        # Badge de modo (SIMULACIÓN / HARDWARE)
+        self.mode_badge_hdr = tk.Label(
+            left, text="SIMULACIÓN",
+            font=("Segoe UI", 9, "bold"), padx=10, pady=5, bd=0,
+        )
+        self.mode_badge_hdr.pack(anchor="w")
+        self._set_badge(self.mode_badge_hdr, "SIMULACIÓN", "warning")
+
+        # Seccion derecha: titulo y reloj
+        right = tk.Frame(hdr, bg=self.T["panel"])
+        right.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=18, pady=14)
 
         # Reloj
         self.clock_label = tk.Label(
             right, text="--:--:--",
-            bg=self.T["panel"], fg=self.T["muted"],
+            bg=self.T["panel"], fg=self.T["accent"],
             font=("Segoe UI", 12, "bold"),
         )
         self.clock_label.pack(anchor="e")
+
+        tk.Label(
+            right, text="Monitor ECG de Signos Vitales",
+            bg=self.T["panel"], fg=self.T["title"],
+            font=("Segoe UI", 19, "bold"),
+        ).pack(anchor="e")
+
+        tk.Label(
+            right, text="Adquisición de 6 derivaciones   |   Análisis ECG en tiempo real   |   Marcapasos bifásico",
+            bg=self.T["panel"], fg=self.T["muted"],
+            font=("Segoe UI", 9),
+        ).pack(anchor="e", pady=(3, 0))
 
     # ----------------------------------------------------------
     def _create_ecg_plot(self, parent):
@@ -498,31 +500,34 @@ class ECGApp(tk.Tk):
             return tk.Label(bar, text=text, bg=self.T["panel"],
                             fg=self.T["muted"], font=("Segoe UI", 9))
 
-        _status_label("  Muestras:").pack(side=tk.LEFT)
-        self.sb_samples_lbl = _status_label("0")
-        self.sb_samples_lbl.pack(side=tk.LEFT)
-
-        tk.Frame(bar, bg=self.T["border"], width=1).pack(side=tk.LEFT, fill=tk.Y, padx=10, pady=6)
-
-        _status_label("BPM:").pack(side=tk.LEFT)
-        self.sb_bpm_lbl = tk.Label(bar, text="---", bg=self.T["panel"],
-                                   fg=self.T["success"], font=("Segoe UI", 9, "bold"))
-        self.sb_bpm_lbl.pack(side=tk.LEFT, padx=(4, 0))
+        # Izquierda: modo de operacion prominente
+        self.sb_mode_lbl = tk.Label(bar, text="MODO SIMULACIÓN", bg=self.T["panel"],
+                                    fg=self.T["warning"], font=("Segoe UI", 9, "bold"))
+        self.sb_mode_lbl.pack(side=tk.LEFT, padx=(12, 0))
 
         tk.Frame(bar, bg=self.T["border"], width=1).pack(side=tk.LEFT, fill=tk.Y, padx=10, pady=6)
 
         _status_label("Ritmo:").pack(side=tk.LEFT)
         self.sb_rhythm_lbl = tk.Label(bar, text="---", bg=self.T["panel"],
-                                      fg=self.T["muted"], font=("Segoe UI", 9, "bold"))
+                                      fg=self.T["primary"], font=("Segoe UI", 9, "bold"))
         self.sb_rhythm_lbl.pack(side=tk.LEFT, padx=(4, 0))
 
         tk.Frame(bar, bg=self.T["border"], width=1).pack(side=tk.LEFT, fill=tk.Y, padx=10, pady=6)
 
-        self.sb_mode_lbl = tk.Label(bar, text="MODO SIMULACIÓN", bg=self.T["panel"],
-                                    fg=self.T["warning"], font=("Segoe UI", 9, "bold"))
-        self.sb_mode_lbl.pack(side=tk.RIGHT, padx=12)
+        _status_label("BPM:").pack(side=tk.LEFT)
+        self.sb_bpm_lbl = tk.Label(bar, text="---", bg=self.T["panel"],
+                                   fg=self.T["accent"], font=("Segoe UI", 9, "bold"))
+        self.sb_bpm_lbl.pack(side=tk.LEFT, padx=(4, 0))
 
-        _status_label("  Frec.: 1000 Hz  |  Sesión: DEMO BIOMÉDICA  |").pack(side=tk.RIGHT)
+        # Derecha: info tecnica y muestras
+        _status_label("  |  Frec.: 1000 Hz  |  Sesión: DEMO BIOMÉDICA  ").pack(side=tk.RIGHT)
+
+        tk.Frame(bar, bg=self.T["border"], width=1).pack(side=tk.RIGHT, fill=tk.Y, padx=10, pady=6)
+
+        self.sb_samples_lbl = tk.Label(bar, text="0", bg=self.T["panel"],
+                                       fg=self.T["neutral_fg"], font=("Segoe UI", 9))
+        self.sb_samples_lbl.pack(side=tk.RIGHT)
+        _status_label("Muestras:  ").pack(side=tk.RIGHT)
 
     # ==============================================================
     # ── HELPERS DE WIDGETS ────────────────────────────────────────
@@ -658,13 +663,13 @@ class ECGApp(tk.Tk):
 
     def _create_vital_signs_panel(self, parent):
         p = self._create_panel(parent, "Signos Vitales",
-                               "Parámetros cardiacos en tiempo real", color_bar=self.T["success"])
+                               "Parámetros cardiacos en tiempo real", color_bar=self.T["accent"])
         c = p.content
 
         # BPM grande
         self.bpm_big_label = tk.Label(
             c, text="---",
-            bg=self.T["panel"], fg=self.T["success"],
+            bg=self.T["panel"], fg=self.T["accent"],
             font=("Segoe UI", 36, "bold"),
         )
         self.bpm_big_label.pack(anchor="center", pady=(4, 0))
@@ -692,7 +697,7 @@ class ECGApp(tk.Tk):
 
     def _create_lead_selection_panel(self, parent):
         p = self._create_panel(parent, "Selección de Derivación",
-                               "Derivación de ECG (MUX)", color_bar=self.T["primary"])
+                               "Derivación de ECG (MUX)", color_bar=self.T["success"])
         c = p.content
 
         # Indicador de derivada activa
@@ -809,8 +814,8 @@ class ECGApp(tk.Tk):
         canvas.delete("all")
 
         # Colores de la forma de onda bifasica
-        wave_pos = "#F59E0B"   # naranja — fase positiva
-        wave_neg = "#F87171"   # rojo suave — fase negativa
+        wave_pos = "#D946EF"   # magenta neon — fase positiva
+        wave_neg = "#A3E635"   # lima electrico — fase negativa
         base_col = self.T["baseline"]
 
         cy  = H // 2            # eje Y central
@@ -856,7 +861,7 @@ class ECGApp(tk.Tk):
 
     def _create_signal_settings_panel(self, parent):
         p = self._create_panel(parent, "Ajustes de Señal",
-                               "Umbrales de detección y visualización", color_bar=self.T["accent"])
+                               "Umbrales de detección y visualización", color_bar=self.T["warning"])
         c = p.content
 
         self.acq_rate_badge = self._metric_row(c, "Frecuencia de muestreo")
@@ -887,7 +892,7 @@ class ECGApp(tk.Tk):
 
     def _create_connection_panel(self, parent):
         p = self._create_panel(parent, "Conexión",
-                               "Puerto serial y estado del hardware", color_bar=self.T["warning"])
+                               "Puerto serial y estado del hardware", color_bar=self.T["primary"])
         c = p.content
 
         # Badge de modo grande
@@ -953,7 +958,7 @@ class ECGApp(tk.Tk):
 
     def _create_simulation_panel(self, parent):
         p = self._create_panel(parent, "Control de Simulación",
-                               "Parámetros del generador de ECG", color_bar=self.T["accent"])
+                               "Parámetros del generador de ECG", color_bar=self.T["info_fg"])
         c = p.content
 
         params = [
@@ -1086,7 +1091,7 @@ class ECGApp(tk.Tk):
             bpm_color = self.T["warning"]
         else:
             bpm_text  = f"{bpm:.0f}"
-            bpm_color = self.T["success"]
+            bpm_color = self.T["accent"]
 
         self.bpm_big_label.config(text=bpm_text, fg=bpm_color)
 
@@ -1549,7 +1554,7 @@ class ECGApp(tk.Tk):
             self._update_connection_panel()
             self._update_simulation_panel()
             self.sb_samples_lbl.config(text=f"{sc:,}")
-            bpm_color = (self.T["success"] if 60 <= bpm <= 100
+            bpm_color = (self.T["accent"] if 60 <= bpm <= 100
                          else self.T["warning"] if bpm > 0 else self.T["muted"])
             self.sb_bpm_lbl.config(
                 text=f"{bpm:.0f}" if bpm > 0 else "---", fg=bpm_color
